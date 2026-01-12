@@ -1,0 +1,23 @@
+Package: KnologyTemplate
+Type: Package
+Title: Knology R Markdown Templates
+Version: 0.1.0
+Authors@R: person("Knology", "Organization", email = "johnv@knology.org", role = c("aut", "cre")) 
+Description: Provides R Markdown templates with Knology branding, including
+    custom color palettes, fonts (Ubuntu and Open Sans), and ggplot2 styling
+    for consistent report generation.
+License: 
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 3.5.0)
+Imports:
+    rmarkdown,
+    knitr
+Suggests:
+    ggplot2,
+    ggpubr,
+    tidyverse,
+    sysfonts,
+    showtext
+RoxygenNote: 7.2.3

@@ -1,0 +1,427 @@
+---
+title: "Report Title"
+author: "Author Name"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    css: styles.css
+    self_contained: true
+    toc: true
+    toc_float: true
+  word_document:
+    reference_docx: word_template.docx
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+
+# SETUP: DEFAULT BEHAVIORS FOR CODE CHUNKS
+# *****************************************************************************
+# These settings control how R code chunks behave in your report:
+# - echo = FALSE: Don't show the code, just the output
+# - message = FALSE: Suppress package loading messages
+# - warning = FALSE: Suppress warning messages
+# - dpi = 300: High resolution for all plots (publication quality)
+# - fig.width/fig.height: Default dimensions for plots in inches
+# - dev = 'png': Use PNG device for better font rendering in HTML output
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  dpi = 300,
+  fig.width = 8,
+  fig.height = 5,
+  dev = 'png'
+)
+
+# KNOLOGY COLOR PALETTE
+# *****************************************************************************
+# Use these color variables throughout your report for consistent branding.
+# They can be used in ggplot2 with: geom_point(color = kBlue)
+# Or with scale_fill_manual(values = c(kAqua, kOrange, kPurple))
+
+# Primary Knology colors
+kBlue <- Knology.Blue <- "#266093"                    # Trusted Blue (primary brand color)
+kSky <- Knology.Blue.Highlight <- "#7D9BC0"           # Horizon Blue (light accent)
+kYellow <- Knology.Yellow.Widget <- "#D8C827"         # Optimistic Citrine (highlight)
+kOrange <- Knology.Orange.Widget <- "#F36C3E"         # Radiant Coral (accent)
+kGreen <- Knology.Green.Widget <- "#6CA443"           # New Leaf (nature/growth)
+kAqua <- Knology.Blue.Widget <- "#00A2AE"             # Ocean (behaviors)
+kPurple <- Knology.Purple.Widget <- "#943A80"         # Passion (culture)
+kText <- Knology.Blue.Text <- "#002F6C"               # Dark Blue (body text)
+kBlack <- Knology.Black <- "#101820"                  # Black (headers/emphasis)
+axis.col <- grey(0.8)                                 # Light grey for axes
+
+# Color vector for multi-category plots (use this for 6+ categories)
+# Order: Aqua → Orange → Purple → Yellow → Green → Blue
+Knology.bar.col <- c(kAqua, kOrange, kPurple, kYellow, kGreen, kBlue)
+
+# LOAD FONTS
+# *****************************************************************************
+# Ubuntu is used for headers and plot text
+# Open Sans is used for body text (via CSS)
+# showtext_auto() enables custom fonts in plots
+# showtext_opts() sets the DPI for proper rendering in HTML/PNG output
+sysfonts::font_add_google("Ubuntu")
+sysfonts::font_add_google("Open Sans")
+showtext::showtext_auto()
+showtext::showtext_opts(dpi = 300)  # Match the DPI setting for proper text scaling
+
+# LOAD REQUIRED PACKAGES
+# *****************************************************************************
+library(ggpubr)       # Publication-ready plots and statistical comparisons
+library(tidyverse)    # Data manipulation and visualization (includes ggplot2, dplyr, etc.)
+
+# SET SEED FOR REPRODUCIBILITY
+# *****************************************************************************
+# This ensures that any random operations (sampling, simulations) 
+# produce the same results each time you knit the document
+set.seed(1234)
+
+# DEFINE KNOLOGY GRAPH STYLE
+# *****************************************************************************
+# This theme removes unnecessary chart elements and applies Knology branding
+# Use it by adding "+ graphStyle" to any ggplot
+graphStyle <- theme_bw() +
+  theme(
+    text = element_text(family = "Ubuntu", size = 18),         # Use Ubuntu font, size 18 for all text
+    panel.border = element_blank(),                            # Remove border around plot
+    panel.grid.major = element_blank(),                        # Remove major gridlines
+    panel.grid.minor = element_blank(),                        # Remove minor gridlines
+    panel.background = element_rect(fill = "transparent", colour = NA),  # Transparent panel
+    plot.background = element_rect(fill = "transparent", color = NA),    # Transparent background
+    legend.background = element_rect(fill = "transparent"),    # Transparent legend
+    axis.text.x = element_text(size = 18),                     # X-axis labels size
+    axis.text.y = element_text(size = 18),                     # Y-axis labels size
+    axis.title.x = element_text(size = 18, margin = margin(10, 0, 0, 0)), # X-axis title
+    axis.title.y = element_text(size = 18),                    # Y-axis title
+    plot.title = element_text(size = 20, hjust = 0.5),         # Plot title (centered, larger)
+    legend.text = element_text(size = 16),                     # Legend text
+    legend.title = element_text(size = 18)                     # Legend title
+  )
+```
+
+```{r load-data}
+
+# LOAD YOUR DATA
+# *****************************************************************************
+# Replace this section with code to load your actual data file
+# Examples:
+#   CSV file:   mydata <- read_csv("data/myfile.csv")
+#   Excel file: mydata <- readxl::read_excel("data/myfile.xlsx")
+#   SPSS file:  mydata <- haven::read_sav("data/myfile.sav")
+#   RDS file:   mydata <- readRDS("data/myfile.rds")
+
+# For this template, we'll use the built-in 'iris' dataset as an example
+mydata <- iris
+
+# View the first few rows to confirm data loaded correctly
+#head(mydata)
+```
+
+```{r data-preparation}
+
+# DATA PREPARATION AND CLEANING
+# *****************************************************************************
+# Use this section to prepare your data for analysis:
+# - Rename variables for clarity
+# - Create new calculated variables
+# - Filter or subset data
+# - Handle missing values
+# - Normalize or scale variables
+# - Convert data types (factors, dates, etc.)
+
+# Example: Normalize a numeric variable to 0-1 scale
+# mydata$normalized_var <- (mydata$raw_var - min(mydata$raw_var, na.rm = TRUE)) / 
+#                          (max(mydata$raw_var, na.rm = TRUE) - min(mydata$raw_var, na.rm = TRUE))
+
+# Example: Create categorical variables based on numeric thresholds
+# mydata$category <- case_when(
+#   mydata$value > 0.6 ~ "High",
+#   mydata$value > 0.3 ~ "Medium",
+#   TRUE ~ "Low"
+# )
+
+# Example: Convert variables to factors with specific levels
+# mydata$group <- factor(mydata$group, levels = c("Control", "Treatment A", "Treatment B"))
+
+# For this template, we'll just rename the species column
+mydata <- mydata %>%
+  rename(Group = Species)
+```
+
+## Introduction
+
+Describe the purpose and background of your analysis here.
+
+## Methods
+
+### Data Collection
+
+Describe your data collection methods, sample size, and data sources.
+
+### Analysis Approach
+
+Describe your analytical methods and statistical approaches.
+
+## Results
+
+### Descriptive Statistics
+
+```{r descriptive-stats}
+ 
+# DESCRIPTIVE STATISTICS TABLE
+# *****************************************************************************
+# Calculate summary statistics for your variables
+# This example shows means and standard deviations by group
+
+summary_table <- mydata %>%
+  group_by(Group) %>%
+  summarise(
+    N = n(),
+    Mean = round(mean(Sepal.Length, na.rm = TRUE), 2),
+    SD = round(sd(Sepal.Length, na.rm = TRUE), 2),
+    Min = round(min(Sepal.Length, na.rm = TRUE), 2),
+    Max = round(max(Sepal.Length, na.rm = TRUE), 2)
+  )
+
+# Display as a formatted table
+knitr::kable(
+  summary_table,
+  caption = "Table 1. Descriptive statistics by group.",
+  align = 'lrrrrr'  # Left-align first column, right-align numbers
+)
+```
+
+### Violin Plot
+
+```{r violin-plot, fig.cap="Figure 1. Violin plot showing distribution across groups."}
+
+# VIOLIN PLOT
+# *****************************************************************************
+# Violin plots show the full distribution of data
+# They combine features of box plots and density plots
+# 
+# Color assignment: Use first 3 colors from palette for 3 groups
+# - For different number of groups, adjust the values in scale_fill_manual()
+# - Example with 4 groups: values = c(kAqua, kOrange, kPurple, kYellow)
+
+ggplot(mydata, aes(x = Group, y = Sepal.Length, fill = Group)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +            # Main violin plot, semi-transparent
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +  # Add small boxplot inside
+  scale_fill_manual(values = c(kAqua, kOrange, kPurple)) +  # Assign Knology colors
+  labs(
+    title = "Distribution by Group",                  # Plot title
+    x = "",                                            # X-axis label (empty to use group names)
+    y = "Value"                                        # Y-axis label
+  ) +
+  graphStyle +                                         # Apply Knology theme
+  theme(legend.position = "none")                      # Hide legend (redundant with x-axis)
+```
+
+### Bar Plot
+
+```{r bar-plot, fig.cap="Figure 2. Bar plot comparing mean values across groups."}
+# BAR PLOT WITH ERROR BARS
+# *****************************************************************************
+# Bar plots show mean values with error bars (typically standard error or confidence intervals)
+# Best for comparing averages across categories
+#
+# First, calculate means and standard errors for each group
+
+bar_data <- mydata %>%
+  group_by(Group) %>%
+  summarise(
+    Mean = mean(Sepal.Length, na.rm = TRUE),
+    SE = sd(Sepal.Length, na.rm = TRUE) / sqrt(n())  # Standard Error
+  )
+
+# Create the bar plot
+ggplot(bar_data, aes(x = Group, y = Mean, fill = Group)) +
+  geom_bar(stat = "identity", alpha = 0.8) +          # Create bars from calculated means
+  geom_errorbar(                                       # Add error bars
+    aes(ymin = Mean - SE, ymax = Mean + SE),          # Error bar limits
+    width = 0.2,                                       # Width of error bar caps
+    linewidth = 0.5                                    # Thickness of error bars
+  ) +
+  scale_fill_manual(values = c(kAqua, kOrange, kPurple)) +  # Assign colors
+  labs(
+    title = "Mean Values by Group",
+    x = "",
+    y = "Mean Value"
+  ) +
+  graphStyle +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Angle labels if names are long
+  )
+```
+
+### Box Plot
+
+```{r box-plot, fig.cap="Figure 3. Box plot showing median and quartiles by group."}
+
+# BOX PLOT
+# *****************************************************************************
+# Box plots show the median, quartiles, and outliers
+# The box represents the interquartile range (IQR: 25th to 75th percentile)
+# The line inside is the median
+# Whiskers extend to 1.5 × IQR
+# Points beyond whiskers are outliers
+
+ggplot(mydata, aes(x = Group, y = Sepal.Length, fill = Group)) +
+  geom_boxplot(
+    alpha = 0.7,                                       # Semi-transparent boxes
+    outlier.colour = kText,                            # Color outlier points
+    outlier.size = 2                                   # Size of outlier points
+  ) +
+  scale_fill_manual(values = c(kAqua, kOrange, kPurple)) +
+  labs(
+    title = "Distribution by Group",
+    x = "",
+    y = "Value"
+  ) +
+  graphStyle +
+  theme(legend.position = "none")
+```
+
+### Horizontal Means Plot
+
+```{r means-plot, fig.cap="Figure 4. Horizontal plot of mean values with confidence intervals."}
+
+# HORIZONTAL MEANS PLOT
+# *****************************************************************************
+# This plot style is useful for:
+# - Comparing means across multiple categories with long names
+# - Showing ratings or survey responses
+# - Displaying knowledge/attitude scales
+#
+# Calculate means and confidence intervals
+
+means_data <- mydata %>%
+  group_by(Group) %>%
+  summarise(
+    Mean = mean(Sepal.Length, na.rm = TRUE),
+    Lower = mean(Sepal.Length, na.rm = TRUE) - 1.96 * sd(Sepal.Length, na.rm = TRUE) / sqrt(n()),
+    Upper = mean(Sepal.Length, na.rm = TRUE) + 1.96 * sd(Sepal.Length, na.rm = TRUE) / sqrt(n())
+  )
+
+# Reverse the order of categories (top to bottom)
+means_data$Group <- factor(means_data$Group, levels = rev(means_data$Group))
+
+# Create horizontal plot
+ggplot(means_data, aes(x = Mean, y = Group)) +
+  geom_vline(                                          # Add reference line (e.g., midpoint or threshold)
+    xintercept = 5.8,                                  # Adjust this value as needed
+    linetype = "dashed",
+    color = kYellow,
+    linewidth = 1
+  ) +
+  geom_errorbarh(                                      # Horizontal error bars
+    aes(xmin = Lower, xmax = Upper),
+    height = 0.2,                                      # Height of error bar caps
+    linewidth = 1,
+    color = kBlue
+  ) +
+  geom_point(size = 4, color = kBlue) +               # Mean points
+  scale_x_continuous(
+    limits = c(4, 8),                                  # Adjust axis limits for your data
+    name = "Value"
+  ) +
+  scale_y_discrete(name = "") +
+  labs(title = "Mean Values by Group") +
+  graphStyle +
+  theme(
+    axis.ticks.y = element_blank(),                    # Remove y-axis ticks
+    plot.margin = margin(r = 0.75, t = 0.25, unit = "lines")
+  )
+```
+
+### Grouped Comparison Plot
+
+```{r grouped-means, fig.cap="Figure 5. Comparison across multiple groups and conditions."}
+
+# GROUPED HORIZONTAL MEANS PLOT
+# *****************************************************************************
+# Use this when you want to compare multiple groups across multiple categories
+# Example: Comparing treatment effects across different demographic groups
+#
+# For this example, we'll create a grouped dataset
+
+# Prepare data with multiple measurements per group
+grouped_data <- mydata %>%
+  group_by(Group) %>%
+  summarise(
+    Measure1 = mean(Sepal.Length, na.rm = TRUE),
+    Measure2 = mean(Sepal.Width, na.rm = TRUE),
+    Measure3 = mean(Petal.Length, na.rm = TRUE)
+  ) %>%
+  pivot_longer(                                        # Convert to long format for plotting
+    cols = starts_with("Measure"),
+    names_to = "Measure",
+    values_to = "Value"
+  ) %>%
+  group_by(Group, Measure) %>%
+  summarise(
+    Mean = mean(Value),
+    SE = sd(Value) / sqrt(n()),
+    .groups = "drop"
+  )
+
+# Reverse category order for better readability
+grouped_data$Measure <- factor(
+  grouped_data$Measure,
+  levels = rev(c("Measure1", "Measure2", "Measure3")),
+  labels = rev(c("Sepal Length", "Sepal Width", "Petal Length"))
+)
+
+# Create grouped plot
+ggplot(grouped_data, aes(x = Mean, y = Measure, color = Group)) +
+  geom_vline(                                          # Optional reference line
+    xintercept = 3,
+    linetype = "dashed",
+    color = grey(0.6)
+  ) +
+  geom_errorbarh(                                      # Error bars
+    aes(xmin = Mean - SE, xmax = Mean + SE),
+    height = 0,
+    linewidth = 1.5,
+    position = position_dodge(-0.5)                    # Offset groups vertically
+  ) +
+  geom_point(                                          # Mean points
+    size = 3,
+    position = position_dodge(-0.5)
+  ) +
+  scale_color_manual(values = c(kAqua, kOrange, kPurple)) +  # Color by group
+  scale_x_continuous(name = "Mean Value") +
+  scale_y_discrete(name = "") +
+  labs(title = "Comparison Across Groups and Measures") +
+  graphStyle +
+  theme(
+    axis.ticks.y = element_blank(),
+    legend.position = "right",                         # Show legend for group colors
+    plot.margin = margin(r = 0.75, t = 0.25, unit = "lines")
+  )
+```
+
+## Discussion
+
+### Key Findings
+
+Summarize your main findings here.
+
+### Implications
+
+Discuss the implications of your results.
+
+### Limitations
+
+Acknowledge any limitations of your study or analysis.
+
+## Conclusion
+
+Provide a brief conclusion summarizing the importance of your findings.
+
+## References
+
+List your references here, or use a bibliography management system like BibTeX.
