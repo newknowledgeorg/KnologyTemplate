@@ -15,13 +15,7 @@ This package provides R Markdown templates for researchers at Knology.
 Install from GitHub:
 
 ```r
-devtools::install_github("knology/KnologyTemplate")
-```
-
-Or install from a local copy:
-
-```r
-devtools::install_local("~/path/to/KnologyTemplate/")
+devtools::install_github("newknowledgeorg/KnologyTemplate")
 ```
 
 ## Usage
@@ -32,22 +26,6 @@ After installing the package, create a new R Markdown document in RStudio:
 2. Click **"From Template"**
 3. Select **"Knology Report"**
 4. Click **OK**
-
-## Knology Color Palette
-
-The template includes all Knology brand colors:
-
-| Variable | Color Name | Hex Code |
-|----------|-----------|----------|
-| `kBlue` | Trusted Blue | #266093 |
-| `kSky` | Horizon Blue | #7D9BC0 |
-| `kYellow` | Optimistic Citrine | #D8C827 |
-| `kOrange` | Radiant Coral | #F36C3E |
-| `kGreen` | New Leaf | #6CA443 |
-| `kAqua` | Ocean | #00A2AE |
-| `kPurple` | Passion | #943A80 |
-| `kText` | Dark Blue Text | #002F6C |
-| `kBlack` | Black | #101820 |
 
 ## Example Usage
 
@@ -71,7 +49,6 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
 ```
 KnologyTemplate/
 ├── DESCRIPTION
-├── LICENSE
 ├── README.md
 ├── NAMESPACE
 └── inst/
@@ -105,7 +82,3 @@ devtools::install()
 ## Contributing
 
 We welcome comments and suggestions from other researchers. Please open an issue or submit a pull request.
-
-## License
-
-MIT License - see LICENSE file for details.
