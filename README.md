@@ -15,7 +15,7 @@ This package provides R Markdown templates for researchers at Knology.
 Install from GitHub:
 
 ```r
-devtools::install_github("newknowledgeorg/KnologyTemplate")
+devtools::install_github("newknowledgeorg/KnologyTemplate", force = TRUE)
 ```
 
 ## Usage
@@ -82,3 +82,4 @@ devtools::install()
 ## Contributing
 
 We welcome comments and suggestions from other researchers. Please open an issue or submit a pull request.
+
