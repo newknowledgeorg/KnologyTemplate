@@ -1,3 +1,10 @@
 name: Knology Report
 description: Template for Knology reports with branding and styling
-create_dir: false
+create_dir: true
+output:
+  html_document:
+    css: styles.css
+    self_contained: true
+    toc: true
+    toc_float: true
+  word_document: default
