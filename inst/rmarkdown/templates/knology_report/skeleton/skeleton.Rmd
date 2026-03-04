@@ -3,13 +3,13 @@ title: "Report Title"
 author: "Author Name"
 date: "`r Sys.Date()`"
 output:
+  word_document:
+    reference_docx: word_template.docx
   html_document:
     css: styles.css
     self_contained: true
     toc: true
     toc_float: true
-  word_document:
-    reference_docx: word_template.docx
 fontsize: 11pt
 ---
 
@@ -48,8 +48,8 @@ kOrange <- Knology.Orange.Widget <- "#F36C3E"         # Radiant Coral (accent)
 kGreen <- Knology.Green.Widget <- "#6CA443"           # New Leaf (nature/growth)
 kAqua <- Knology.Blue.Widget <- "#00A2AE"             # Ocean (behaviors)
 kPurple <- Knology.Purple.Widget <- "#943A80"         # Passion (culture)
-kText <- Knology.Blue.Text <- "#002F6C"               # Dark Blue (body text)
-kBlack <- Knology.Black <- "#101820"                  # Black (headers/emphasis)
+kText <- Knology.Blue.Text <- "#002F6C"               # Dark Blue (Headers)
+kBlack <- Knology.Black <- "#101820"                  # Black (Body text)
 axis.col <- grey(0.8)                                 # Light grey for axes
 
 # Color vector for multi-category plots (use this for 6+ categories)
@@ -71,6 +71,7 @@ showtext::showtext_opts(dpi = 300)  # Match the DPI setting for proper text scal
 # *****************************************************************************
 library(ggpubr)       # Publication-ready plots and statistical comparisons
 library(tidyverse)    # Data manipulation and visualization (includes ggplot2, dplyr, etc.)
+library(kableExtra)
 
 # SET SEED FOR REPRODUCIBILITY
 # *****************************************************************************
@@ -99,6 +100,16 @@ graphStyle <- theme_bw() +
     legend.text = element_text(size = 16),                     # Legend text
     legend.title = element_text(size = 18)                     # Legend title
   )
+
+# WRAP LONG AXIS LABELS
+# *****************************************************************************
+# Wraps labels to a new line after a specified character limit
+# Usage: scale_x_discrete(labels = wrap_labels(20))
+# Adjust width = number to control where the line breaks
+
+wrap_labels <- function(width = 15) {
+  function(x) stringr::str_wrap(x, width = width)
+}
 ```
 
 ```{r load-data}
@@ -169,28 +180,92 @@ Describe your analytical methods and statistical approaches.
 ### Descriptive Statistics
 
 ```{r descriptive-stats}
- 
+
+# Detect output format
+is_word <- isTRUE(knitr::opts_knit$get("rmarkdown.pandoc.to") == "docx")
+
+# FREQUENCY TABLE FOR CATEGORICAL ITEMS
+# *****************************************************************************
+# NA rows are dropped before counting.
+# Valid N reflects only rows with a response — this matches the N used in means.
+
+cat_cols <- names(mydata)[sapply(mydata, function(x) is.factor(x) | is.character(x))]
+
+freq_table <- lapply(cat_cols, function(col) {
+  valid_rows <- mydata %>% filter(!is.na(.data[[col]]))
+  valid_rows %>%
+    group_by(Response = as.character(.data[[col]])) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    mutate(
+      Item    = col,
+      Valid_N = nrow(valid_rows),
+      Pct     = round(n / Valid_N * 100, 1)
+    ) %>%
+    select(Item, Response, n, Pct, Valid_N)
+}) %>%
+  bind_rows()
+
+if (is_word) {
+  knitr::kable(
+    freq_table,
+    caption = "Table 1. Response frequencies for categorical items (non-missing only).",
+    col.names = c("Item", "Response", "n", "%", "Valid N"),
+    align = "llrrr"
+  )
+} else {
+  knitr::kable(
+    freq_table,
+    caption = "Table 1. Response frequencies for categorical items (non-missing only).",
+    col.names = c("Item", "Response", "n", "%", "Valid N"),
+    align = "llrrr"
+  ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed"),
+      full_width = FALSE
+    ) %>%
+    collapse_rows(columns = c(1, 5), valign = "top")
+}
+
+
 # DESCRIPTIVE STATISTICS TABLE
 # *****************************************************************************
-# Calculate summary statistics for your variables
-# This example shows means and standard deviations by group
+# N is the count of non-NA values, matching the logic in the frequency table
 
-summary_table <- mydata %>%
-  group_by(Group) %>%
-  summarise(
-    N = n(),
-    Mean = round(mean(Sepal.Length, na.rm = TRUE), 2),
-    SD = round(sd(Sepal.Length, na.rm = TRUE), 2),
-    Min = round(min(Sepal.Length, na.rm = TRUE), 2),
-    Max = round(max(Sepal.Length, na.rm = TRUE), 2)
+numeric_cols <- names(mydata)[sapply(mydata, is.numeric)]
+
+desc_table <- lapply(numeric_cols, function(col) {
+  x <- mydata[[col]][!is.na(mydata[[col]])]
+  data.frame(
+    Variable = col,
+    N        = length(x),
+    Mean     = round(mean(x), 2),
+    SD       = round(sd(x), 2),
+    Median   = round(median(x), 2),
+    Min      = round(min(x), 2),
+    Max      = round(max(x), 2)
   )
+}) %>%
+  bind_rows()
 
-# Display as a formatted table
-knitr::kable(
-  summary_table,
-  caption = "Table 1. Descriptive statistics by group.",
-  align = 'lrrrrr'  # Left-align first column, right-align numbers
-)
+if (is_word) {
+  knitr::kable(
+    desc_table,
+    caption = "Table 2. Descriptive statistics for numeric variables (non-missing rows only).",
+    col.names = c("Variable", "N", "Mean", "SD", "Median", "Min", "Max"),
+    align = "lrrrrrr"
+  )
+} else {
+  knitr::kable(
+    desc_table,
+    caption = "Table 2. Descriptive statistics for numeric variables (non-missing rows only).",
+    col.names = c("Variable", "N", "Mean", "SD", "Median", "Min", "Max"),
+    align = "lrrrrrr"
+  ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed"),
+      full_width = FALSE
+    )
+}
 ```
 
 ### Violin Plot
@@ -215,6 +290,8 @@ ggplot(mydata, aes(x = Group, y = Sepal.Length, fill = Group)) +
     x = "",                                            # X-axis label (empty to use group names)
     y = "Value"                                        # Y-axis label
   ) +
+  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
+  scale_y_discrete(labels = wrap_labels(15))+
   graphStyle +                                         # Apply Knology theme
   theme(legend.position = "none")                      # Hide legend (redundant with x-axis)
 ```
@@ -250,6 +327,8 @@ ggplot(bar_data, aes(x = Group, y = Mean, fill = Group)) +
     x = "",
     y = "Mean Value"
   ) +
+  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
+  scale_y_discrete(labels = wrap_labels(15))+
   graphStyle +
   theme(
     legend.position = "none",
@@ -281,6 +360,8 @@ ggplot(mydata, aes(x = Group, y = Sepal.Length, fill = Group)) +
     x = "",
     y = "Value"
   ) +
+  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
+  scale_y_discrete(labels = wrap_labels(15))+
   graphStyle +
   theme(legend.position = "none")
 ```
@@ -330,6 +411,8 @@ ggplot(means_data, aes(x = Mean, y = Group)) +
   ) +
   scale_y_discrete(name = "") +
   labs(title = "Mean Values by Group") +
+  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
+  scale_y_discrete(labels = wrap_labels(15))+
   graphStyle +
   theme(
     axis.ticks.y = element_blank(),                    # Remove y-axis ticks
@@ -396,6 +479,8 @@ ggplot(grouped_data, aes(x = Mean, y = Measure, color = Group)) +
   scale_x_continuous(name = "Mean Value") +
   scale_y_discrete(name = "") +
   labs(title = "Comparison Across Groups and Measures") +
+  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
+  scale_y_discrete(labels = wrap_labels(15))+
   graphStyle +
   theme(
     axis.ticks.y = element_blank(),
