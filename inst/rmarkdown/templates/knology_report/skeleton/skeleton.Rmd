@@ -3,8 +3,7 @@ title: "Report Title"
 author: "Author Name"
 date: "`r Sys.Date()`"
 output:
-  word_document:
-    reference_docx: word_template.docx
+  word_document: default
   html_document:
     css: styles.css
     self_contained: true
@@ -510,3 +509,4 @@ Provide a brief conclusion summarizing the importance of your findings.
 ## References
 
 List your references here, or use a bibliography management system like BibTeX.
+
