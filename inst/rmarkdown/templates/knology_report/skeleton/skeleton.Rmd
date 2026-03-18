@@ -3,12 +3,12 @@ title: "Report Title"
 author: "Author Name"
 date: "`r Sys.Date()`"
 output:
-  word_document: default
   html_document:
     css: styles.css
     self_contained: true
     toc: true
     toc_float: true
+  word_document: default
 fontsize: 11pt
 ---
 
@@ -40,20 +40,23 @@ knitr::opts_chunk$set(
 # Or with scale_fill_manual(values = c(kAqua, kOrange, kPurple))
 
 # Primary Knology colors
-kBlue <- Knology.Blue <- "#266093"                    # Trusted Blue (primary brand color)
-kSky <- Knology.Blue.Highlight <- "#7D9BC0"           # Horizon Blue (light accent)
-kYellow <- Knology.Yellow.Widget <- "#D8C827"         # Optimistic Citrine (highlight)
-kOrange <- Knology.Orange.Widget <- "#F36C3E"         # Radiant Coral (accent)
-kGreen <- Knology.Green.Widget <- "#6CA443"           # New Leaf (nature/growth)
-kAqua <- Knology.Blue.Widget <- "#00A2AE"             # Ocean (behaviors)
-kPurple <- Knology.Purple.Widget <- "#943A80"         # Passion (culture)
-kText <- Knology.Blue.Text <- "#002F6C"               # Dark Blue (Headers)
-kBlack <- Knology.Black <- "#101820"                  # Black (Body text)
-axis.col <- grey(0.8)                                 # Light grey for axes
+kBlue   <-  "#266093"         # Trusted Blue (primary brand color)
+kSky    <-  "#7D9BC0"         # Horizon Blue (light accent)
+kYellow <-  "#D8C827"         # Optimistic Citrine (highlight)
+kOrange <-  "#F36C3E"         # Radiant Coral (accent)
+kGreen  <-  "#6CA443"         # New Leaf (nature/growth)
+kAqua   <-  "#00A2AE"         # Ocean (behaviors)
+kPurple <-  "#943A80"         # Passion (culture)
+kText   <-  "#002F6C"         # Dark Blue (Headers)
+kBlack  <-  "#101820"         # Black (Body text)
+axis.col<-  "#cccccc"         # Light grey for axes
 
 # Color vector for multi-category plots (use this for 6+ categories)
 # Order: Aqua → Orange → Purple → Yellow → Green → Blue
 Knology.bar.col <- c(kAqua, kOrange, kPurple, kYellow, kGreen, kBlue)
+
+# Recycles the Knology palette to however many groups exist
+knology_pal <- function(n) rep(Knology.bar.col, length.out = n)
 
 # LOAD FONTS
 # *****************************************************************************
@@ -71,6 +74,7 @@ showtext::showtext_opts(dpi = 300)  # Match the DPI setting for proper text scal
 library(ggpubr)       # Publication-ready plots and statistical comparisons
 library(tidyverse)    # Data manipulation and visualization (includes ggplot2, dplyr, etc.)
 library(kableExtra)
+library(readxl)
 
 # SET SEED FOR REPRODUCIBILITY
 # *****************************************************************************
@@ -95,7 +99,7 @@ graphStyle <- theme_bw() +
     axis.text.y = element_text(size = 18),                     # Y-axis labels size
     axis.title.x = element_text(size = 18, margin = margin(10, 0, 0, 0)), # X-axis title
     axis.title.y = element_text(size = 18),                    # Y-axis title
-    plot.title = element_text(size = 20, hjust = 0.5),         # Plot title (centered, larger)
+    plot.title = element_text(size = 20, hjust = 0.5, color = kText), # Plot title (centered, larger)
     legend.text = element_text(size = 16),                     # Legend text
     legend.title = element_text(size = 18)                     # Legend title
   )
@@ -131,33 +135,133 @@ mydata <- iris
 
 ```{r data-preparation}
 
-# DATA PREPARATION AND CLEANING
-# *****************************************************************************
-# Use this section to prepare your data for analysis:
-# - Rename variables for clarity
-# - Create new calculated variables
-# - Filter or subset data
-# - Handle missing values
-# - Normalize or scale variables
-# - Convert data types (factors, dates, etc.)
+# ***** PROJECT-SPECIFIC CONFIGURATION ****************************************
+# EDIT THIS SECTION FOR EACH PROJECT.
+# All the choices that vary project-to-project are gathered here so you only
+# have to look in one place when adapting the template.
 
-# Example: Normalize a numeric variable to 0-1 scale
-# mydata$normalized_var <- (mydata$raw_var - min(mydata$raw_var, na.rm = TRUE)) / 
-#                          (max(mydata$raw_var, na.rm = TRUE) - min(mydata$raw_var, na.rm = TRUE))
+# 1. GROUPING VARIABLE
+#    The column used to split tables and color plots (e.g. "Species", "Game",
+#    "Condition", "Site"). Must exist in mydata after any renaming below.
+group_var <- "Species"
 
-# Example: Create categorical variables based on numeric thresholds
-# mydata$category <- case_when(
-#   mydata$value > 0.6 ~ "High",
-#   mydata$value > 0.3 ~ "Medium",
-#   TRUE ~ "Low"
+# 2. NUMERIC VARIABLES FOR DESCRIPTIVE STATS TABLE AND PLOTS
+#    List the column names you want summarised. These will appear as rows
+#    in the descriptive stats table and as the y-axis in plots.
+numeric_vars <- c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width")
+
+# 3. CATEGORICAL VARIABLES FOR FREQUENCY TABLES
+#    List the column names you want one-table-per-variable frequency output for.
+#    Remove any free-text or ID columns
+cat_vars <- c("Species")
+
+# 4. LIKERT LEVELS (ordered low → high)
+#    If your data has Likert-scale responses, define the correct order here so
+#    tables and plots sort properly. Delete this block if not applicable.
+likert_levels <- c(
+  "Disagree Strongly",
+  "Disagree Moderately",
+  "Disagree Slightly",
+  "Agree Slightly",
+  "Agree Moderately",
+  "Agree Strongly"
+)
+
+# 5. COLUMNS TO APPLY LIKERT FACTOR ORDERING
+#    List any columns that use the likert_levels scale defined above.
+#    Delete this block if not applicable.
+likert_cols <- c()   # e.g. c("Setup_Ease", "Learning", "Parent_Response")
+
+# ******* WIDE-TO-LONG PIVOT (ONLY NEEDED FOR REPEATED-BLOCK SURVEY DATA) *************
+# Skip this section entirely if your data is already in long format or has
+# no repeated question blocks (e.g. the same questions asked once per condition).
+#
+# When to use it: your data has columns like "Question 1", "Question 2",
+# "Question 3" — the same questions repeated for different conditions/groups,
+# distinguished only by a numeric suffix.
+#
+# HOW IT WORKS:
+#   pivot_longer with names_pattern splits each column name into two parts:
+#   (1) the base question stem  →  becomes the new column name
+#   (2) the suffix number       →  becomes the grouping variable
+#
+# INSTRUCTIONS:
+#   a. Set repeated_question_stems to the exact base question texts (without
+#      the trailing number).
+#   b. Set group_labels to map each suffix number to its human-readable name.
+#   c. Set repeated_group_var to what you want to call the grouping column
+#      (e.g. "Game", "Condition", "Visit").
+#   d. Rename the resulting columns to short clean names in the rename() call.
+#   e. Update numeric_vars and cat_vars above to use the new short names.
+#   f. Replace mydata with mydata_long in all plots and tables below.
+
+# ***UNCOMMENT AND FILL IN IF YOUR DATA NEEDS A PIVOT ***
+
+# repeated_question_stems <- c(
+#   "Question stem one",       # exact text, no trailing number
+#   "Question stem two",
+#   "Question stem three"
 # )
+#
+# group_labels <- c(
+#   "1" = "Group Name 1",      # suffix -> human-readable label
+#   "2" = "Group Name 2",
+#   "3" = "Group Name 3"
+# )
+#
+# repeated_group_var <- "Group"   # what to call the new grouping column
+#
+# pivot_regex <- str_c(
+#   "^(", str_c(repeated_question_stems, collapse = "|"), ") ([0-9]+)$"
+# )
+#
+# mydata_long <- mydata %>%
+#   pivot_longer(
+#     cols         = matches(pivot_regex),
+#     names_to     = c(".value", "suffix"),
+#     names_pattern = pivot_regex
+#   ) %>%
+#   mutate(
+#     !!repeated_group_var := factor(group_labels[suffix], levels = group_labels)
+#   ) %>%
+#   rename(
+#     ShortName1 = `Question stem one`,    # give each question a short clean name
+#     ShortName2 = `Question stem two`,
+#     ShortName3 = `Question stem three`
+#   )
 
-# Example: Convert variables to factors with specific levels
-# mydata$group <- factor(mydata$group, levels = c("Control", "Treatment A", "Treatment B"))
+# ************ STANDARD CLEANING*******************************
+# Converts empty strings and non-breaking spaces (common in survey exports)
+# to true NA, and trims any accidental whitespace.
 
-# For this template, we'll just rename the species column
 mydata <- mydata %>%
-  rename(Group = Species)
+  mutate(across(where(is.character), str_trim)) %>%
+  mutate(across(where(is.character), ~na_if(., ""))) %>%
+  mutate(across(where(is.character), ~na_if(., "\u00a0")))
+
+# Survey exports from Excel often store numeric columns as character when any
+# cell contains a non-numeric value (like a non-breaking space or stray text).
+# suppressWarnings() silences the "NAs introduced by coercion" message, which
+# is expected — those were already non-numeric and are correctly becoming NA.
+
+#mydata <- mydata %>%
+  #mutate(across(all_of(numeric_vars), ~suppressWarnings(as.numeric(.))))
+
+# Apply ordered Likert factor if likert_cols is populated
+if (length(likert_cols) > 0) {
+  mydata <- mydata %>%
+    mutate(across(all_of(likert_cols),
+                  ~factor(., levels = likert_levels, ordered = TRUE)))
+}
+
+# Rename the grouping variable to a standard internal name so all downstream
+# code works without modification when you change group_var above.
+mydata <- mydata %>%
+  rename(Group = all_of(group_var))
+
+# Remap cat_vars: if the grouping column was listed there, update it to "Group"
+# so downstream walk() finds the column under its new internal name.
+cat_vars <- str_replace(cat_vars, fixed(group_var), "Group")
 ```
 
 ## Introduction
@@ -178,312 +282,257 @@ Describe your analytical methods and statistical approaches.
 
 ### Descriptive Statistics
 
-```{r descriptive-stats}
+```{r descriptive-stats, results='asis'}
 
 # Detect output format
 is_word <- isTRUE(knitr::opts_knit$get("rmarkdown.pandoc.to") == "docx")
+
+# HELPER: RENDER ONE KABLE TABLE
+# *****************************************************************************
+# Centralises the is_word switch so it doesn't repeat inside every walk() call.
+# Pass it any data frame + caption and it renders correctly for HTML or Word.
+render_table <- function(tbl, caption, col_names = colnames(tbl),
+                         align = NULL, collapse_col = NULL) {
+
+  k <- knitr::kable(tbl, caption = caption,
+                    col.names = col_names,
+                    align = align)
+  if (!is_word) {
+    k <- k %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                    full_width = FALSE)
+    if (!is.null(collapse_col)) {
+      k <- k %>% collapse_rows(columns = collapse_col, valign = "top")
+    }
+  }
+  print(k)
+}
 
 # FREQUENCY TABLE FOR CATEGORICAL ITEMS
 # *****************************************************************************
 # NA rows are dropped before counting.
 # Valid N reflects only rows with a response — this matches the N used in means.
 
-cat_cols <- names(mydata)[sapply(mydata, function(x) is.factor(x) | is.character(x))]
+# walk() iterates over cat_vars and prints a separate table for each one.
+# Unlike lapply, walk() is designed for side effects (like printing) rather
+# than collecting results — it's the tidyverse tool for "do this for each item".
+# results='asis' on the chunk header is required so knitr renders the HTML
+# tables instead of printing them as raw text.
 
-freq_table <- lapply(cat_cols, function(col) {
-  valid_rows <- mydata %>% filter(!is.na(.data[[col]]))
-  valid_rows %>%
+walk(cat_vars, function(col) {
+
+  tbl <- mydata %>%
+    filter(!is.na(.data[[col]])) %>%
     group_by(Response = as.character(.data[[col]])) %>%
     summarise(n = n(), .groups = "drop") %>%
     mutate(
-      Item    = col,
-      Valid_N = nrow(valid_rows),
+      Valid_N = sum(n),
       Pct     = round(n / Valid_N * 100, 1)
     ) %>%
-    select(Item, Response, n, Pct, Valid_N)
-}) %>%
-  bind_rows()
+    select(Response, n, Pct, Valid_N)
 
-if (is_word) {
-  knitr::kable(
-    freq_table,
-    caption = "Table 1. Response frequencies for categorical items (non-missing only).",
-    col.names = c("Item", "Response", "n", "%", "Valid N"),
-    align = "llrrr"
+  render_table(
+    tbl,
+    caption   = str_c("Response frequencies for: ", col),
+    col_names = c("Response", "n", "%", "Valid N"),
+    align     = "lrrr"
   )
-} else {
-  knitr::kable(
-    freq_table,
-    caption = "Table 1. Response frequencies for categorical items (non-missing only).",
-    col.names = c("Item", "Response", "n", "%", "Valid N"),
-    align = "llrrr"
-  ) %>%
-    kable_styling(
-      bootstrap_options = c("striped", "hover", "condensed"),
-      full_width = FALSE
-    ) %>%
-    collapse_rows(columns = c(1, 5), valign = "top")
-}
+})
 
 
 # DESCRIPTIVE STATISTICS TABLE
 # *****************************************************************************
-# N is the count of non-NA values, matching the logic in the frequency table
+# group_by(Group) produces one block of statistics per group level.
+# summarise(across(...)) applies all 6 stat functions to every numeric variable
+# in one step.
+# pivot_longer then reshapes to tidy format: each row = one group × one variable.
+#
+# To remove grouping and get overall statistics, delete the group_by(Group) line
+# and replace -Group with everything() in pivot_longer.
 
-numeric_cols <- names(mydata)[sapply(mydata, is.numeric)]
-
-desc_table <- lapply(numeric_cols, function(col) {
-  x <- mydata[[col]][!is.na(mydata[[col]])]
-  data.frame(
-    Variable = col,
-    N        = length(x),
-    Mean     = round(mean(x), 2),
-    SD       = round(sd(x), 2),
-    Median   = round(median(x), 2),
-    Min      = round(min(x), 2),
-    Max      = round(max(x), 2)
-  )
-}) %>%
-  bind_rows()
-
-if (is_word) {
-  knitr::kable(
-    desc_table,
-    caption = "Table 2. Descriptive statistics for numeric variables (non-missing rows only).",
-    col.names = c("Variable", "N", "Mean", "SD", "Median", "Min", "Max"),
-    align = "lrrrrrr"
-  )
-} else {
-  knitr::kable(
-    desc_table,
-    caption = "Table 2. Descriptive statistics for numeric variables (non-missing rows only).",
-    col.names = c("Variable", "N", "Mean", "SD", "Median", "Min", "Max"),
-    align = "lrrrrrr"
+desc_table <- mydata %>%
+  group_by(Group) %>%
+  summarise(
+    across(
+      all_of(numeric_vars),
+      list(
+        N      = ~sum(!is.na(.)),
+        Mean   = ~round(mean(., na.rm = TRUE), 2),
+        SD     = ~round(sd(.,   na.rm = TRUE), 2),
+        Median = ~round(median(., na.rm = TRUE), 2),
+        Min    = ~round(min(.,  na.rm = TRUE), 2),
+        Max    = ~round(max(.,  na.rm = TRUE), 2)
+      ),
+      .names = "{.col}__{.fn}"   # double underscore = reliable split point for pivot_longer
+    ),
+    .groups = "drop"
   ) %>%
-    kable_styling(
-      bootstrap_options = c("striped", "hover", "condensed"),
-      full_width = FALSE
-    )
-}
+  pivot_longer(
+    cols      = -Group,
+    names_to  = c("Variable", ".value"),   # split col name into Variable + stat name
+    names_sep = "__"
+  ) %>%
+  select(Group, Variable, N, Mean, SD, Median, Min, Max)
+
+render_table(
+  desc_table,
+  caption     = "Descriptive statistics by group.",
+  col_names   = c("Group", "Variable", "N", "Mean", "SD", "Median", "Min", "Max"),
+  align       = "llrrrrrr",
+  collapse_col = 1
+)
 ```
 
-### Violin Plot
+### Distribution by Group
 
-```{r violin-plot, fig.cap="Figure 1. Violin plot showing distribution across groups."}
+```{r violin-plot, fig.cap="Figure 1. Distribution of the primary outcome variable by group."}
 
 # VIOLIN PLOT
 # *****************************************************************************
-# Violin plots show the full distribution of data
-# They combine features of box plots and density plots
-# 
-# Color assignment: Use first 3 colors from palette for 3 groups
-# - For different number of groups, adjust the values in scale_fill_manual()
-# - Example with 4 groups: values = c(kAqua, kOrange, kPurple, kYellow)
+# UPDATE: Change y = to your primary numeric variable of interest.
 
-ggplot(mydata, aes(x = Group, y = Sepal.Length, fill = Group)) +
-  geom_violin(trim = FALSE, alpha = 0.7) +            # Main violin plot, semi-transparent
-  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +  # Add small boxplot inside
-  scale_fill_manual(values = c(kAqua, kOrange, kPurple)) +  # Assign Knology colors
+ggplot(mydata, aes(x = Group, y = .data[[numeric_vars[1]]], fill = Group)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
+  scale_fill_manual(values = knology_pal(n_distinct(mydata$Group))) +
   labs(
-    title = "Distribution by Group",                  # Plot title
-    x = "",                                            # X-axis label (empty to use group names)
-    y = "Value"                                        # Y-axis label
+    title = str_c("Distribution of ", numeric_vars[1], " by Group"),
+    x = "",
+    y = numeric_vars[1]
   ) +
-  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
-  scale_y_discrete(labels = wrap_labels(15))+
-  graphStyle +                                         # Apply Knology theme
-  theme(legend.position = "none")                      # Hide legend (redundant with x-axis)
+  scale_x_discrete(labels = wrap_labels(12)) +
+  graphStyle +
+  theme(legend.position = "none")
 ```
 
-### Bar Plot
+### Mean Comparison
 
-```{r bar-plot, fig.cap="Figure 2. Bar plot comparing mean values across groups."}
+```{r bar-plot, fig.cap="Figure 2. Mean values by group with standard error bars."}
+
 # BAR PLOT WITH ERROR BARS
 # *****************************************************************************
-# Bar plots show mean values with error bars (typically standard error or confidence intervals)
-# Best for comparing averages across categories
-#
-# First, calculate means and standard errors for each group
+# UPDATE: Change the variable inside mean() and sd() to your outcome of interest.
 
 bar_data <- mydata %>%
   group_by(Group) %>%
   summarise(
-    Mean = mean(Sepal.Length, na.rm = TRUE),
-    SE = sd(Sepal.Length, na.rm = TRUE) / sqrt(n())  # Standard Error
-  )
+    Mean = mean(.data[[numeric_vars[1]]], na.rm = TRUE),
+    SE   = sd(.data[[numeric_vars[1]]],   na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  filter(!is.nan(Mean))    # add this line
 
-# Create the bar plot
 ggplot(bar_data, aes(x = Group, y = Mean, fill = Group)) +
-  geom_bar(stat = "identity", alpha = 0.8) +          # Create bars from calculated means
-  geom_errorbar(                                       # Add error bars
-    aes(ymin = Mean - SE, ymax = Mean + SE),          # Error bar limits
-    width = 0.2,                                       # Width of error bar caps
-    linewidth = 0.5                                    # Thickness of error bars
+  geom_bar(stat = "identity", alpha = 0.8) +
+  geom_errorbar(
+    aes(ymin = Mean - SE, ymax = Mean + SE),
+    width = 0.2,
+    linewidth = 0.5
   ) +
-  scale_fill_manual(values = c(kAqua, kOrange, kPurple)) +  # Assign colors
+  scale_fill_manual(values = knology_pal(n_distinct(bar_data$Group))) +
   labs(
-    title = "Mean Values by Group",
+    title = str_c("Mean ", numeric_vars[1], " by Group"),
     x = "",
-    y = "Mean Value"
+    y = str_c("Mean ", numeric_vars[1])
   ) +
-  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
-  scale_y_discrete(labels = wrap_labels(15))+
+  scale_x_discrete(labels = wrap_labels(12)) +
   graphStyle +
-  theme(
-    legend.position = "none",
-    axis.text.x = element_text(angle = 45, hjust = 1)  # Angle labels if names are long
-  )
+  theme(legend.position = "none")
 ```
 
-### Box Plot
+### Attendance Distribution
 
 ```{r box-plot, fig.cap="Figure 3. Box plot showing median and quartiles by group."}
 
 # BOX PLOT
 # *****************************************************************************
-# Box plots show the median, quartiles, and outliers
-# The box represents the interquartile range (IQR: 25th to 75th percentile)
-# The line inside is the median
-# Whiskers extend to 1.5 × IQR
-# Points beyond whiskers are outliers
-
-ggplot(mydata, aes(x = Group, y = Sepal.Length, fill = Group)) +
+ggplot(mydata, aes(x = Group, y = .data[[numeric_vars[1]]], fill = Group)) +
   geom_boxplot(
-    alpha = 0.7,                                       # Semi-transparent boxes
-    outlier.colour = kText,                            # Color outlier points
-    outlier.size = 2                                   # Size of outlier points
+    alpha = 0.7,
+    outlier.colour = kText,
+    outlier.size = 2
   ) +
-  scale_fill_manual(values = c(kAqua, kOrange, kPurple)) +
+  scale_fill_manual(values = knology_pal(n_distinct(mydata$Group))) +
   labs(
-    title = "Distribution by Group",
+    title = str_c("Distribution of ", numeric_vars[1], " by Group"),
     x = "",
-    y = "Value"
+    y = numeric_vars[1]
   ) +
-  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
-  scale_y_discrete(labels = wrap_labels(15))+
+  scale_x_discrete(labels = wrap_labels(12)) +
   graphStyle +
   theme(legend.position = "none")
 ```
 
-### Horizontal Means Plot
+### Means with Confidence Intervals
 
-```{r means-plot, fig.cap="Figure 4. Horizontal plot of mean values with confidence intervals."}
+```{r means-plot, fig.cap="Figure 4. Mean values with 95% confidence intervals by group."}
 
 # HORIZONTAL MEANS PLOT
 # *****************************************************************************
-# This plot style is useful for:
-# - Comparing means across multiple categories with long names
-# - Showing ratings or survey responses
-# - Displaying knowledge/attitude scales
-#
-# Calculate means and confidence intervals
-
 means_data <- mydata %>%
   group_by(Group) %>%
   summarise(
-    Mean = mean(Sepal.Length, na.rm = TRUE),
-    Lower = mean(Sepal.Length, na.rm = TRUE) - 1.96 * sd(Sepal.Length, na.rm = TRUE) / sqrt(n()),
-    Upper = mean(Sepal.Length, na.rm = TRUE) + 1.96 * sd(Sepal.Length, na.rm = TRUE) / sqrt(n())
-  )
+    Mean  = mean(.data[[numeric_vars[1]]], na.rm = TRUE),
+    Lower = Mean - 1.96 * sd(.data[[numeric_vars[1]]], na.rm = TRUE) / sqrt(n()),
+    Upper = Mean + 1.96 * sd(.data[[numeric_vars[1]]], na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  filter(!is.nan(Mean)) %>%                  # drop groups with no valid data
+  mutate(Group = fct_reorder(Group, Mean))
 
-# Reverse the order of categories (top to bottom)
-means_data$Group <- factor(means_data$Group, levels = rev(means_data$Group))
-
-# Create horizontal plot
 ggplot(means_data, aes(x = Mean, y = Group)) +
-  geom_vline(                                          # Add reference line (e.g., midpoint or threshold)
-    xintercept = 5.8,                                  # Adjust this value as needed
-    linetype = "dashed",
-    color = kYellow,
-    linewidth = 1
-  ) +
-  geom_errorbarh(                                      # Horizontal error bars
+  geom_errorbarh(
     aes(xmin = Lower, xmax = Upper),
-    height = 0.2,                                      # Height of error bar caps
+    height = 0.2,
     linewidth = 1,
     color = kBlue
   ) +
-  geom_point(size = 4, color = kBlue) +               # Mean points
-  scale_x_continuous(
-    limits = c(4, 8),                                  # Adjust axis limits for your data
-    name = "Value"
-  ) +
-  scale_y_discrete(name = "") +
-  labs(title = "Mean Values by Group") +
-  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
-  scale_y_discrete(labels = wrap_labels(15))+
+  geom_point(size = 4, color = kBlue) +
+  scale_x_continuous(name = str_c("Mean ", numeric_vars[1])) +
+  scale_y_discrete(name = "", labels = wrap_labels(20)) +
+  labs(title = str_c("Mean ", numeric_vars[1], " by Group (95% CI)")) +
   graphStyle +
-  theme(
-    axis.ticks.y = element_blank(),                    # Remove y-axis ticks
-    plot.margin = margin(r = 0.75, t = 0.25, unit = "lines")
-  )
+  theme(axis.ticks.y = element_blank())
 ```
 
-### Grouped Comparison Plot
+### Multi-Variable Comparison
 
-```{r grouped-means, fig.cap="Figure 5. Comparison across multiple groups and conditions."}
+```{r grouped-means, fig.cap="Figure 5. Mean values across all numeric variables and groups."}
 
 # GROUPED HORIZONTAL MEANS PLOT
 # *****************************************************************************
-# Use this when you want to compare multiple groups across multiple categories
-# Example: Comparing treatment effects across different demographic groups
-#
-# For this example, we'll create a grouped dataset
+# Compares all numeric_vars side by side, colored by Group.
+# Useful for showing a profile across multiple outcomes at once.
 
-# Prepare data with multiple measurements per group
 grouped_data <- mydata %>%
   group_by(Group) %>%
   summarise(
-    Measure1 = mean(Sepal.Length, na.rm = TRUE),
-    Measure2 = mean(Sepal.Width, na.rm = TRUE),
-    Measure3 = mean(Petal.Length, na.rm = TRUE)
-  ) %>%
-  pivot_longer(                                        # Convert to long format for plotting
-    cols = starts_with("Measure"),
-    names_to = "Measure",
-    values_to = "Value"
-  ) %>%
-  group_by(Group, Measure) %>%
-  summarise(
-    Mean = mean(Value),
-    SE = sd(Value) / sqrt(n()),
+    across(
+      all_of(numeric_vars),
+      ~mean(., na.rm = TRUE)
+    ),
     .groups = "drop"
-  )
+  ) %>%
+  pivot_longer(
+    cols      = -Group,
+    names_to  = "Variable",
+    values_to = "Mean"
+  ) %>%
+  mutate(Variable = fct_reorder(Variable, Mean, .fun = mean))
 
-# Reverse category order for better readability
-grouped_data$Measure <- factor(
-  grouped_data$Measure,
-  levels = rev(c("Measure1", "Measure2", "Measure3")),
-  labels = rev(c("Sepal Length", "Sepal Width", "Petal Length"))
-)
-
-# Create grouped plot
-ggplot(grouped_data, aes(x = Mean, y = Measure, color = Group)) +
-  geom_vline(                                          # Optional reference line
-    xintercept = 3,
-    linetype = "dashed",
-    color = grey(0.6)
-  ) +
-  geom_errorbarh(                                      # Error bars
-    aes(xmin = Mean - SE, xmax = Mean + SE),
-    height = 0,
-    linewidth = 1.5,
-    position = position_dodge(-0.5)                    # Offset groups vertically
-  ) +
-  geom_point(                                          # Mean points
+ggplot(grouped_data, aes(x = Mean, y = Variable, color = Group)) +
+  geom_point(
     size = 3,
     position = position_dodge(-0.5)
   ) +
-  scale_color_manual(values = c(kAqua, kOrange, kPurple)) +  # Color by group
+  scale_color_manual(values = knology_pal(n_distinct(grouped_data$Group))) +
   scale_x_continuous(name = "Mean Value") +
-  scale_y_discrete(name = "") +
-  labs(title = "Comparison Across Groups and Measures") +
-  scale_x_discrete(labels = wrap_labels(15))+             #avoid over lap by wrapping text
-  scale_y_discrete(labels = wrap_labels(15))+
+  scale_y_discrete(name = "", labels = wrap_labels(25)) +
+  labs(title = "Mean Values Across Variables and Groups") +
   graphStyle +
   theme(
     axis.ticks.y = element_blank(),
-    legend.position = "right",                         # Show legend for group colors
+    legend.position = "right",
     plot.margin = margin(r = 0.75, t = 0.25, unit = "lines")
   )
 ```
@@ -509,4 +558,3 @@ Provide a brief conclusion summarizing the importance of your findings.
 ## References
 
 List your references here, or use a bibliography management system like BibTeX.
-
